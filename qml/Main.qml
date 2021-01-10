@@ -40,6 +40,7 @@ MainView {
    property string dist;
    property bool filtered: false
    Sports {id:sportsComp}
+   property var activeSport: null
 
    //keep screen on while tracking an activity so we still get to read GPS
    ScreenSaver {
@@ -101,12 +102,52 @@ MainView {
       return speed
    }
 
+   function year_month_totals(type,sec,activeSport){
+       var result = 0;
+       for(var i = 0; i < listModel.count; i++){
+           if (filtered == false) {
+               if (listModel.get(i).month_year == sec) {
+                   if (type == "distance"){
+                       result += listModel.get(i).distance_numeric;
+                   }
+                   else {
+                       result += listModel.get(i).time_numeric;
+                   }
+           }
+           }
+           else {
+               if ((listModel.get(i).month_year == sec) && (listModel.get(i).act_type == activeSport)) {
+                   if (type == "distance"){
+                       result += listModel.get(i).distance_numeric;
+                   }
+                   else {
+                       result += listModel.get(i).time_numeric;
+                   }
+           }
+           }
+       }
+           if (type == "distance"){
+               return result.toFixed(2);
+           }
+           else {
+               return stopwatch(result);
+           }
+       }
+
    ListModel {
       id: listModel
    }
+
+   SortFilterModel {
+      id: sortedModel
+      model: listModel
+      sort.property: "month_year"
+      sort.order: "Qt::DescendingOrder"
+   }
+
    SortFilterModel {
       id: filteredModel
-      model: listModel
+      model: sortedModel
       filter.property: "act_type"
    }
    onRunitsChanged: {
@@ -143,18 +184,23 @@ MainView {
             listModel.clear()
             for (var i=0; i<result.length; i++) {
                //console.warn(runits);
+               result[i].distance_numeric = Number(result[i].distance)
+               result[i].time_numeric = parseFloat(result[i].speed) * 60
                if (runits == "miles"){
                   console.warn(result[i].distance)
                   //console.warn(result[i].speed)
                   var mi
                   mi = result[i].distance * 0.62137
                   result[i].distance = i18n.tr("Distance: ")+mi.toFixed(2) + "mi"
+                  result[i].distance_numeric  = result[i].distance_numeric * 0.62137
                }
                else if (runits == "kilometers"){
                   result[i].distance = i18n.tr("Distance: ")+result[i].distance + "km"
                }
                var seconds = parseFloat(result[i].speed) * 60
                result[i].speed = i18n.tr("Time: ") + stopwatch(seconds)
+               var date = (new Date(result[i].act_date))
+               result[i].month_year = (date.getMonth()+1).toString()+'/'+date.getFullYear().toString()
                listModel.append(result[i]);
             }
 
@@ -263,7 +309,10 @@ MainView {
             left: parent.left
             right: parent.right
          }
-         onSelectedIndexChanged: filteredModel.filter.pattern = new RegExp(sportsComp.name[selectedIndex], 'i')
+         onSelectedIndexChanged: {
+             filteredModel.filter.pattern = new RegExp(sportsComp.name[selectedIndex], 'i');
+             activeSport = sportsComp.name[selectedIndex]
+        }
          onVisibleChanged: filteredModel.filter.pattern = new RegExp(sportsComp.name[selectedIndex], 'i')
       }
     }//PageHeader
@@ -322,6 +371,65 @@ MainView {
          newrunEdge.preloadContent = true
       }
 
+
+      Component {
+        id: sectionHeading
+        Rectangle {
+            width: parent.width
+            height: 1.2*childrenRect.height
+            color: "lightgray"
+            Row {
+                width: parent.width
+                anchors.verticalCenter : parent.verticalCenter
+                spacing: 0
+                Text {
+                    width: 0.33*parent.width
+                    text: section
+                    anchors.verticalCenter : parent.verticalCenter
+                    horizontalAlignment:Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.bold: true
+                    font.pointSize: units.gu(2)
+                }
+                Column {
+                spacing: 8
+                width: 0.33*parent.width
+                Icon {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: units.gu(2)
+                    height: units.gu(2)
+                    name: 'keyboard-tab'
+                    color: "#000000"
+                }
+                Text {
+                    text: year_month_totals("distance",section,activeSport).toString() +" "+ {kilometers: 'km', miles: 'mi'}[runits]
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    horizontalAlignment:Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    }
+                }
+                Column {
+                spacing: 8
+                width: 0.33*parent.width
+                    Icon {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: units.gu(2)
+                        height: units.gu(2)
+                        name: 'stopwatch'
+                        color: "#000000"
+                    }
+                Text {
+                    text: year_month_totals("time",section,activeSport)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    horizontalAlignment:Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
+
+        }
+        }
+
       ListView {
          anchors {
             left: page1.left
@@ -332,8 +440,11 @@ MainView {
          width: parent.width
          height: parent.height
          clip:true
+         section.property: "month_year"
+         section.criteria: ViewSection.FullString
+         section.delegate: sectionHeading
          id:thelist
-         model: filtered ? filteredModel : listModel
+         model: filtered ? filteredModel : sortedModel
          // let refresh control know when the refresh gets completed
          // pullToRefresh {
          //    enabled: false
