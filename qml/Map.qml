@@ -50,10 +50,20 @@ Page {
             refreshmap.focus = true
             pygpxmap.call("geepeeex.visu_gpx", [polyline], function(result) {
                var t = new Array (0)
+               var lonmin = result[0].longitude
+               var lonmax = result[0].longitude
+               var latmin = result[0].latitude
+               var latmax = result[0].latitude
                for (var i=0; i<result.length; i++) {
                   pline.addCoordinate(QtPositioning.coordinate(result[i].latitude,result[i].longitude));
+                  lonmin = Math.min(lonmin,result[i].longitude)
+                  lonmax = Math.max(lonmax,result[i].longitude)
+                  latmin = Math.min(latmin,result[i].latitude)
+                  latmax = Math.max(latmax,result[i].latitude)
                }
-               map.center = QtPositioning.coordinate(result[(i/2).toFixed(0)].latitude,result[(i/2).toFixed(0)].longitude); // Center the map on the enter of the track
+               map.visibleRegion = QtPositioning.rectangle(QtPositioning.coordinate(latmin, lonmin), QtPositioning.coordinate(latmax, lonmax));
+               map.center = QtPositioning.coordinate(latmin+(latmax-latmin)/2,lonmin+(lonmax-lonmin)/2);
+               map.zoomLevel = map.zoomLevel*0.95
                refreshmap.visible = false
                refreshmap.running = false
                refreshmap.focus = false
